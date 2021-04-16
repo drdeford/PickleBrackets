@@ -12,12 +12,12 @@ app = Flask(__name__)
 #Session(app)
 app.secret_key = "1769"
 
-"""
+#"""
 @app.before_request
 def log_the_request():
     logger.info(request.remote_addr)
     logger.info(request)
-"""    
+#"""    
     
 @app.route("/")
 def index():
@@ -135,13 +135,13 @@ def submitRR2():
         return render_template("RR.html", plist=rows)
                         
 if __name__ == "__main__":
-    #from waitress import serve
-    ##logging.basicConfig(filename='app.log',level=logging.DEBUG)
-    #logger = logging.getLogger('waitress')
-    #logger.setLevel(logging.INFO)
+    from waitress import serve
+    #logging.basicConfig(filename='app.log',level=logging.DEBUG)
+    logger = logging.getLogger('waitress')
+    logger.setLevel(logging.INFO)
     
-    #handler = logging.FileHandler('app2.log')
-    #logger.addHandler(handler)
+    handler = logging.FileHandler('app2.log')
+    logger.addHandler(handler)
     
-    #serve(app, host="0.0.0.0", port=8080)
-    app.run() #recomment for wsgi
+    serve(app, host="0.0.0.0", port=8080)
+    #app.run() #recomment for wsgi
