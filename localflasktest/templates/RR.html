@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>PickleBall Round Robin</title>
+    <link rel="stylesheet" type="text/css" href="static/style.css">
+<style>
+    #t01 {
+  width: 100%;
+      border-spacing: 5px;
+padding: 15px;
+    border: 1px solid black;
+} 
+    </style>
+  </head>
+  <body>
+  
+  <h1>Round Robin Bracket</h1>
+    
+<table id="t01">
+    {% for person in plist %}
+    <tr>
+ {% for val in person %}
+                <td>{{ val }}</td>
+            {% endfor %}    </tr>
+{% endfor %}
+    </table>
+
+  </body>
+</html>

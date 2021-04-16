@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>PickleBall Round Robin</title>
+    <link rel="stylesheet" type="text/css" href="static/style.css">
+	  <style>
+h1 {text-align: center;}
+p {text-align: center;}
+div {text-align: center;}
+.center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  width: 50%;
+}		 
+    #t01 {
+      border-spacing: 5px;
+padding: 15px;
+    border: 1px solid black;
+} 
+    </style>
+  </head>
+  <body>
+  
+  <h1>Pickleball Round Robin Brackets </h1>
+  
+  <p> This widget presents pickleball brackets for rotating partner round robin play with between 4 and 24 players. Enter the number of players and whether you would like to enter player names below to get started. If you don't include names the brackets will just assume that you have assigned a number to each player. The design of these brackets was based on the original work of <a href="http://www.jdawiseman.com/papers/tournaments/individual-pairs/individual-pairs-links.html">Julian Wiseman</a> and <a href="http://www.durangobill.com/BridgeCyclicSolutions.html">Durango Bill</a> on whist brackets (and generalizations). </p>
+  <div>
+	    <form method="post" action="/submitRR">
+		<label for="numplay">Number of Players</label>
+ <select id="numplay" name="numplay"> 
+
+<option value= 4>4</option>
+<option value= 5>5</option>
+<option value= 6>6</option>
+<option value= 7>7</option>
+<option value= 8>8</option>
+<option value= 9>9</option>
+<option value= 10>10</option>
+<option value= 11>11</option>
+<option value= 12>12</option>
+<option value= 13>13</option>
+<option value= 14>14</option>
+<option value= 15>15</option>
+<option value= 16>16</option>
+<option value= 17>17</option>
+<option value= 18>18</option>
+<option value= 19>19</option>
+<option value= 20>20</option>
+<option value= 21>21</option>
+<option value= 22>22</option>
+<option value= 23>23</option>
+<option value= 24>24</option>
+
+</select> <br><br>
+
+   <input type="checkbox" id="binnames" name="binnames" value="names_y"> 
+   
+  <label for="binnames">List Player Names? </label><br><br>
+<p><input type="submit" value="Generate Round Robin Matches"></p>
+			  
+	  </form> </div>
+	  
+	  <br>
+	  <br>
+	  <br>
+	  <br>
+	  <br>
+	  <br>
+	  
+	   <img src="https://raw.githubusercontent.com/ddefordWSU/PickleLeagueTest/main/localflasktest/img/pickle1.png" alt="Serve" width="440" height="330" class="center"> <br><br>
+	   <img src="https://raw.githubusercontent.com/ddefordWSU/PickleLeagueTest/main/localflasktest/img/pickle2.png" alt="Dink" width="440" height="330" class="center"> <br><br>
+	   <img src="https://raw.githubusercontent.com/ddefordWSU/PickleLeagueTest/main/localflasktest/img/pickle3.png" alt="Stack" width="440" height="330" class="center"> <br><br>
+	 
+	  <div> Cartoons from these <a href="http://math.wsu.edu/faculty/ddeford/PickleNotes.pdf">Pickleball Notes</a>. </div>
+
+  </body>
+</html>

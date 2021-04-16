@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>PickleBall Round Robin</title>
+    <link rel="stylesheet" type="text/css" href="static/style.css">
+	  <style>
+    #t01 {
+      border-spacing: 5px;
+padding: 15px;
+    border: 1px solid black;
+} 
+    </style>
+  </head>
+  <body>
+  
+ </p>
+ 
+<h2> Player Names for Brackets </h2>
+
+<p> Enter the names of your players in the entry blanks below.  </p>
+
+<form method="post" action="/submitRR2">
+
+{% for person in numplays %}
+
+<p>Player #{{ person.id }}:   <input type="text" name={{ person.label }}></p>
+{% endfor %}
+<br>
+
+
+
+    <p><input type="submit" value="Submit Names"></p>
+</form>
+
+
+  </body>
+</html>

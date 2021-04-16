@@ -1,0 +1,33 @@
+body {
+  color: #453c3b;
+  background: #D3D3D3;
+  bgcolor: #E0E0E0;
+  min-width: 600px;
+  margin-top: 0px;
+  margin-right: auto;
+  font-family: 'ArialMT', 'Arial', 'sans-serif';
+  font-weight: normal;
+  font-variant: normal;
+  font-size: 16px;
+
+  font-style: normal;
+  text-decoration: none;
+  text-transform: none;
+}
+
+input {
+  background: none;
+  font-family: 'ArialMT', 'Arial', 'sans-serif';
+  font-size: 1.1em;
+  padding: 5px;
+  border-radius: 10px;
+  border: 1px solid black;
+}
+
+
+a:link
+{color:#00703C;
+font-weight: bold; }
+
+a:visited { color: #00703C;
+font-weight: bold; }
