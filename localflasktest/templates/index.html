@@ -28,7 +28,7 @@ padding: 15px;
   <p> This widget presents pickleball brackets for rotating partner round robin play with between 4 and 24 players. Enter the number of players and whether you would like to enter player names below to get started. If you don't include names the brackets will just assume that you have assigned a number to each player. The design of these brackets was based on the original work of <a href="http://www.jdawiseman.com/papers/tournaments/individual-pairs/individual-pairs-links.html">Julian Wiseman</a> and <a href="http://www.durangobill.com/BridgeCyclicSolutions.html">Durango Bill</a> on whist brackets (and generalizations). </p>
   <div>
 	    <form method="post" action="/submitRR">
-		<label for="numplay">Number of Players</label>
+		    <label for="numplay"><b>Number of Players</b></label>
  <select id="numplay" name="numplay"> 
 
 <option value= 4>4</option>
@@ -57,7 +57,7 @@ padding: 15px;
 
    <input type="checkbox" id="binnames" name="binnames" value="names_y"> 
    
-  <label for="binnames">List Player Names? </label><br><br>
+		    <label for="binnames"><b>List Player Names?</b> </label><br><br>
 <p><input type="submit" value="Generate Round Robin Matches"></p>
 			  
 	  </form> </div>
