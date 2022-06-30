@@ -59,9 +59,12 @@ def submitRR():
         
         
 
-        url = f"http://math.wsu.edu/faculty/ddeford/PB_Brackets/pb{n}.json"
-        r = requests.get(url)
-        wdict = r.json()
+        #url = f"http://math.wsu.edu/faculty/ddeford/PB_Brackets/pb{n}.json"
+        #r = requests.get(url)
+        #wdict = r.json()
+        
+        with open(f'{app.root_path}/static/pb{n}.json', 'r') as f:
+            wdict = json.load(f)
         
         courts = math.floor(n/4)
         byes = n%4
@@ -104,10 +107,13 @@ def submitRR2():
         
         names = [userdata[f"p{x+1}"] for x in range(n)]
 
-        url = f"http://math.wsu.edu/faculty/ddeford/PB_Brackets/pb{n}.json"
-        r = requests.get(url)
-        wdict = r.json()
+        #url = f"http://math.wsu.edu/faculty/ddeford/PB_Brackets/pb{n}.json"
+        #r = requests.get(url)
+        #wdict = r.json()
         
+        with open(f'{app.root_path}/static/pb{n}.json', 'r') as f:
+            wdict = json.load(f)
+
         courts = math.floor(n/4)
         byes = n%4
 
