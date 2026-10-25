@@ -2,7 +2,7 @@
 {% block content %}
 <section class="setup">
   <h1>Pickleball Brackets</h1>
-  <p class="subtitle">Choose your game. Get on court.</p>
+  <p class="intro">This widget presents pickleball brackets for rotating partner round robin and other rec play systems with between 4 and 24 players. Select the play system, number of players, and whether you would like to enter player names below to get started. If you don't include names the brackets will just assume that you have assigned a number to each player. The design of the round robin brackets was based on the original work of <a href="http://www.jdawiseman.com/papers/tournaments/individual-pairs/individual-pairs-links.html">Julian Wiseman</a> and <a href="http://www.durangobill.com/BridgeCyclicSolutions.html">Durango Bill</a> on whist brackets (and generalizations).</p>
   {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
   <form method="post" action="{{ url_for('submitRR') }}">
     <div class="fields">
@@ -22,8 +22,13 @@
     <button type="submit">Generate matches</button>
   </form>
 </section>
+<section class="cartoons" aria-label="Pickleball cartoons">
+  <img src="{{ url_for('static', filename='img/pickle1.png') }}" alt="Serve" width="440" height="330">
+  <img src="{{ url_for('static', filename='img/pickle2.png') }}" alt="Dink" width="440" height="330">
+  <img src="{{ url_for('static', filename='img/pickle3.png') }}" alt="Stack" width="440" height="330">
+</section>
 <footer>
-  Round robin schedules based on <a href="http://www.jdawiseman.com/papers/tournaments/individual-pairs/individual-pairs-links.html">Julian Wiseman</a> and <a href="http://www.durangobill.com/BridgeCyclicSolutions.html">Durango Bill</a>.
+  Cartoons and more from my <a href="https://drdeford.github.io/HVP_Pickleball/">pickleball work</a>.
 </footer>
 <script>
 const notes = {{ notes | tojson }};

@@ -11,6 +11,9 @@ button:hover { background: #005434; }
 :focus-visible { outline: 3px solid #1587b0; outline-offset: 3px; }
 .setup { max-width: 650px; margin: 30px auto 0; background: white; border: 1px solid #d4ded8; border-radius: 10px; padding: 28px 32px 32px; }
 .setup h1, .setup .subtitle { text-align: center; }
+.intro { text-align: center; }
+.cartoons { display: grid; gap: 28px; max-width: 440px; margin: 48px auto 24px; }
+.cartoons img { display: block; width: 100%; height: auto; }
 .subtitle { color: #576a61; margin: 0 0 24px; }
 .fields { display: grid; grid-template-columns: minmax(0, 1fr) 100px; gap: 16px; margin-top: 30px; }
 .fields label, .names label { display: block; font-weight: bold; }
