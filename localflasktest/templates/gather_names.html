@@ -1,38 +1,17 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8">
-    <title>PickleBall Round Robin</title>
-    <link rel="stylesheet" type="text/css" href="static/style.css">
-	  <style>
-    #t01 {
-      border-spacing: 5px;
-padding: 15px;
-    border: 1px solid black;
-} 
-    </style>
-  </head>
-  <body>
-  
- </p>
- 
-<h2> Player Names for Brackets </h2>
-
-<p> Enter the names of your players in the entry blanks below.  </p>
-
-<form method="post" action="/submitRR2">
-
-{% for person in numplays %}
-
-<p>Player #{{ person.id }}:   <input type="text" name={{ person.label }}></p>
-{% endfor %}
-<br>
-
-
-
-    <p><input type="submit" value="Submit Names"></p>
-</form>
-
-
-  </body>
-</html>
+{% extends "base.html" %}
+{% block content %}
+<section class="setup">
+  <a class="back" href="{{ url_for('index') }}">← New bracket</a>
+  <h1>Player names</h1>
+  <p class="subtitle">{{ title }} · {{ n }} players</p>
+  <form method="post" action="{{ url_for('submitRR2') }}">
+    <input type="hidden" name="setup_token" value="{{ token }}">
+    <div class="names">
+      {% for i in range(1, n + 1) %}
+      <label for="p{{ i }}">Player {{ i }}<input id="p{{ i }}" name="p{{ i }}" type="text" maxlength="40" placeholder="{{ i }}" autocomplete="off"></label>
+      {% endfor %}
+    </div>
+    <button type="submit">Generate matches</button>
+  </form>
+</section>
+{% endblock %}

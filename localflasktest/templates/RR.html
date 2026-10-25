@@ -1,59 +1,13 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8">
-    <title>PickleBall Round Robin</title>
-    <link rel="stylesheet" type="text/css" href="static/style.css">
-<!--<style>
-    #t01 {
-  width: 100%;
-      border-spacing: 5px;
-padding: 15px;
-    border: 1px solid black;
-} 
-    </style>-->
-  <style>
-table {
-  font-family: arial, sans-serif;
-  border-collapse: collapse;
-  width: 100%;
-}
-
-td, th {
-  border: 3px solid #A9A9A9;
-  text-align: left;
-  padding: 8px;
-}
-
-tr:nth-child(even) {
-  background-color: #EEEEEE;
-}
-tr:nth-child(odd) {
-  background-color: #B0FFFF;
-}
-    
-tr:first-child td { 
-  background-color: #98FB98;
-}
-
-</style>
-  </head>
-  <body>
-  
-  <h1>Round Robin Bracket</h1>
-    
-<table id="t01">
-    {% for person in plist %}
-    <tr>
- {% for val in person %}
-      <td><b>{{ val }}</b></td>
-            {% endfor %}    </tr>
-{% endfor %}
-    </table>
-    
-<br><br>
-    
-<a href="http://picklebrackets.com"> Return to homepage</a>
-    
-  </body>
-</html>
+{% extends "base.html" %}
+{% block content %}
+<div class="toolbar"><a href="{{ url_for('index') }}">← New bracket</a><button type="button" class="secondary" onclick="window.print()">Print</button></div>
+<h1>{{ title }}</h1>
+<p class="subtitle">{{ n }} players · {{ courts }} {{ 'court' if courts == 1 else 'courts' }} · {{ rows | length }} rounds</p>
+<p class="hint">{{ note }}</p>
+<div class="table-scroll">
+  <table>
+    <thead><tr><th scope="col">Round</th>{% for i in range(courts) %}<th scope="col">Court {{ i + 1 }}</th>{% endfor %}{% if has_byes %}<th scope="col">Bye(s)</th>{% endif %}</tr></thead>
+    <tbody>{% for row in rows %}<tr><th scope="row">{{ row.number }}</th>{% for game in row.matches %}<td>{{ game }}{% if row.winners %}<small>Won: {{ row.winners[loop.index0] }}</small>{% endif %}</td>{% endfor %}{% if has_byes %}<td>{{ row.byes }}</td>{% endif %}</tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endblock %}

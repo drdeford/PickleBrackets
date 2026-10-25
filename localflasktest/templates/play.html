@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="toolbar"><a href="{{ url_for('index') }}">← New bracket</a><button type="button" class="secondary" onclick="window.print()">Print</button></div>
+<h1>{{ title }}</h1>
+<p class="subtitle">{{ n }} players · Round {{ round_number }}{% if system in ['pool1', 'pool2'] %} · Pool {{ (round_number - 1) // 3 + 1 }}, game {{ (round_number - 1) % 3 + 1 }} of 3{% endif %}</p>
+<p class="hint">{{ note }}</p>
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+<form method="post" action="{{ url_for('next_round') }}">
+  <input type="hidden" name="state_token" value="{{ token }}">
+  <div class="courts">
+    {% for game in games %}
+    <fieldset class="court">
+      <legend>Court {{ loop.index }}{% if loop.first and system != 'swiss' %} · Top{% endif %}</legend>
+      <p class="winner-label">Select winner</p>
+      <label class="team"><input type="radio" name="winner_{{ loop.index0 }}" value="0" required><span>{{ game.a }}</span></label>
+      <span class="versus">vs.</span>
+      <label class="team"><input type="radio" name="winner_{{ loop.index0 }}" value="1" required><span>{{ game.b }}</span></label>
+    </fieldset>
+    {% endfor %}
+  </div>
+  <button class="advance" type="submit">{{ 'Finish session' if round_number >= max_rounds else 'Next round' }}</button>
+</form>
+{% if completed %}
+<details class="history">
+  <summary>Completed rounds ({{ completed | length }})</summary>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th scope="col">Round</th>{% for game in games %}<th scope="col">Court {{ loop.index }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for row in completed %}<tr><th scope="row">{{ row.number }}</th>{% for game in row.matches %}<td>{{ game }}<small>Won: {{ row.winners[loop.index0] }}</small></td>{% endfor %}</tr>{% endfor %}</tbody>
+    </table>
+  </div>
+</details>
+{% endif %}
+{% endblock %}
