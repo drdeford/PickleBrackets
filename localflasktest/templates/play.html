@@ -2,7 +2,7 @@
 {% block content %}
 <div class="toolbar"><a href="{{ url_for('index') }}">← New bracket</a><button type="button" class="secondary" onclick="window.print()">Print</button></div>
 <h1>{{ title }}</h1>
-<p class="subtitle">{{ n }} players · Round {{ round_number }}{% if system in ['pool1', 'pool2'] %} · Pool {{ (round_number - 1) // 3 + 1 }}, game {{ (round_number - 1) % 3 + 1 }} of 3{% endif %}</p>
+<p class="subtitle">{{ n }} players · Round {{ round_number }}</p>
 <p class="hint">{{ note }}</p>
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 <form method="post" action="{{ url_for('next_round') }}">

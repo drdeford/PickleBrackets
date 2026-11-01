@@ -34,6 +34,15 @@ class WebTests(unittest.TestCase):
             **Inputs(response).values, **{f"winner_{i}": i % 2 for i in range(courts)}
         })
 
+    def pool_scores(self, response):
+        data = Inputs(response).values
+        payload = server.signer().loads(data["state_token"])
+        for c, court in enumerate(server.current_pool(payload["state"])):
+            for g, game in enumerate(court.games):
+                data[f"score_{c}_{g}_a"] = str(court.target)
+                data[f"score_{c}_{g}_b"] = str(g)
+        return data
+
     def test_home_and_assets(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
@@ -45,7 +54,10 @@ class WebTests(unittest.TestCase):
 
     def test_every_supported_system_and_count_renders(self):
         for system in server.SYSTEMS:
-            counts = range(4, 25) if system in server.STATIC_SYSTEMS else range(4, 25, 4)
+            if system in server.POOL_SYSTEMS:
+                counts = [4, 5, 8, 9, 10, *range(12, 25)]
+            else:
+                counts = range(4, 25) if system in server.STATIC_SYSTEMS else range(4, 25, 4)
             for n in counts:
                 with self.subTest(system=system, n=n):
                     response = self.start(system, n)
@@ -53,6 +65,11 @@ class WebTests(unittest.TestCase):
                     if system in server.STATIC_SYSTEMS:
                         self.assertIn("<table>", response.text)
                         self.assertEqual("Bye(s)" in response.text, bool(n % 4))
+                    elif system in server.POOL_SYSTEMS:
+                        for _ in range(3):
+                            response = self.client.post("/next-pool", data=self.pool_scores(response))
+                            self.assertEqual(response.status_code, 200)
+                        self.assertIn("Pool 4", response.text)
                     else:
                         for _ in range(6):
                             response = self.advance(response, n // 4)
@@ -72,6 +89,9 @@ class WebTests(unittest.TestCase):
             self.assertEqual(self.client.post("/submitRR", data=data).status_code, 400)
         for path in ("/submitRR", "/submitRR2"):
             self.assertEqual(self.client.get(path).status_code, 302)
+        for system in server.POOL_SYSTEMS:
+            for n in (6, 7, 11):
+                self.assertEqual(self.start(system, n).status_code, 400)
 
     def test_names_are_escaped_and_blank_names_use_player_number(self):
         for system in server.SYSTEMS:
@@ -97,11 +117,16 @@ class WebTests(unittest.TestCase):
         self.assertIn("Second", response.text)
 
     def test_missing_or_tampered_tokens_fail_cleanly(self):
-        for path, field in (("/submitRR2", "setup_token"), ("/next-round", "state_token")):
+        for path, field in (("/submitRR2", "setup_token"), ("/next-round", "state_token"),
+                            ("/next-pool", "state_token")):
             self.assertEqual(self.client.post(path).status_code, 400)
             self.assertEqual(self.client.post(path, data={field: "not-a-token"}).status_code, 400)
         setup = Inputs(self.start("full", 8, binnames="names_y")).values["setup_token"]
         self.assertEqual(self.client.post("/next-round", data={"state_token": setup}).status_code, 400)
+        live = Inputs(self.start("full", 8)).values
+        pool = Inputs(self.start("pool1", 9)).values
+        self.assertEqual(self.client.post("/next-pool", data=live).status_code, 400)
+        self.assertEqual(self.client.post("/next-round", data=pool).status_code, 400)
 
     def test_missing_or_invalid_winner_preserves_round(self):
         response = self.start()
@@ -122,7 +147,7 @@ class WebTests(unittest.TestCase):
         self.assertIn("Completed rounds (1)", second.text)
 
     def test_session_finishes_and_keeps_results(self):
-        response = self.start("pool1", 4)
+        response = self.start("full", 4)
         payload = server.signer().loads(Inputs(response).values["state_token"])
         payload["state"]["round"] = server.MAX_ROUNDS
         response = self.client.post("/next-round", data={
@@ -131,6 +156,61 @@ class WebTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Session complete.", response.text)
         self.assertIn("Won:", response.text)
+
+    def test_mixed_pool_has_complete_schedules_scores_byes_and_totals(self):
+        response = self.start("pool1", 9)
+        self.assertIn("4 players · 3 games to 15", response.text)
+        self.assertIn("5 players · 5 games to 11", response.text)
+        self.assertEqual(response.text.count('aria-label="Court '), 16)
+        self.assertEqual(response.text.count("Bye: "), 5)
+        self.assertNotIn("Select winner", response.text)
+        data = self.pool_scores(response)
+        saved = self.client.post("/next-pool", data=data)
+        self.assertEqual(saved.status_code, 200)
+        self.assertIn("Pool 2", saved.text)
+        self.assertIn("Completed pools (1)", saved.text)
+        payload = server.signer().loads(Inputs(saved).values["state_token"])
+        courts = payload["completed"][0]["courts"]
+        self.assertEqual([len(c["games"]) for c in courts], [3, 5])
+        self.assertEqual([c["target"] for c in courts], [15, 11])
+        self.assertEqual([sum(p["total"] for p in c["points"]) for c in courts], [96, 130])
+        replayed = self.client.post("/next-pool", data=data)
+        self.assertEqual(saved.data, replayed.data)
+
+    def test_bad_pool_scores_preserve_all_assignments_and_entered_values(self):
+        response = self.start("pool2", 9)
+        data = self.pool_scores(response)
+        for value in ("", "abc", "-1", "11", "12", "15"):
+            with self.subTest(value=value):
+                rejected = self.client.post("/next-pool", data={**data, "score_1_4_b": value})
+                self.assertEqual(rejected.status_code, 400)
+                self.assertIn("Pool 1", rejected.text)
+                self.assertEqual(Inputs(rejected).values, Inputs(response).values)
+                self.assertIn('<option value="15" selected>15</option>', rejected.text)
+        bad_four = self.client.post("/next-pool", data={**data, "score_0_0_a": "11"})
+        self.assertEqual(bad_four.status_code, 400)
+        valid = self.client.post("/next-pool", data=data)
+        self.assertEqual(valid.status_code, 200)
+
+    def test_named_five_player_pool_and_finished_session(self):
+        response = self.start("pool2", 5, binnames="names_y")
+        response = self.client.post("/submitRR2", data={
+            **Inputs(response).values, "p1": "Ada", "p2": "<Lin>",
+            "p3": "Jo", "p4": "Sam", "p5": "Avery"
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("&lt;Lin&gt;", response.text)
+        self.assertIn("Bye: Avery", response.text)
+        data = self.pool_scores(response)
+        payload = server.signer().loads(data["state_token"])
+        payload["state"]["pool"] = server.MAX_POOLS
+        payload["state"]["round"] = server.MAX_POOLS
+        data["state_token"] = server.signer().dumps(payload)
+        response = self.client.post("/next-pool", data=data)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Session complete.", response.text)
+        self.assertIn("Points:", response.text)
+        self.assertNotIn('action="/next-pool"', response.text)
 
 
 if __name__ == "__main__":

@@ -10,8 +10,9 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "localflasktest" / "src"))
-from picklebrackets import (SYSTEMS, advance_session, create_session,
-                            current_round, random_schedule)
+from picklebrackets import (POOL_SYSTEMS, SYSTEMS, advance_pool, advance_session,
+                            create_session, current_pool, current_round,
+                            pool_sizes, random_schedule)
 
 
 def players(match):
@@ -32,6 +33,8 @@ class FormatTests(unittest.TestCase):
 
     def test_all_formats_counts_and_rounds(self):
         for system in SYSTEMS:
+            if system in POOL_SYSTEMS:
+                continue
             counts = range(4, 25) if system == "random" else range(4, 25, 4)
             for n in counts:
                 with self.subTest(system=system, n=n):
@@ -45,6 +48,8 @@ class FormatTests(unittest.TestCase):
 
     def test_replay_and_json_round_trip(self):
         for system in SYSTEMS:
+            if system in POOL_SYSTEMS:
+                continue
             state = create_session(system, 16, 165)
             same = create_session(system, 16, 165)
             for r in range(12):
@@ -142,61 +147,179 @@ class FormatTests(unittest.TestCase):
                 state = create_session(system, 4, 71)
                 partners, opponents = Counter(), Counter()
                 wins = Counter({p: 0 for p in range(4)})
-                for outcome in outcomes:
-                    match = current_round(state).matches[0]
+                plan = current_pool(state)
+                for game, outcome in zip(plan[0].games, outcomes):
+                    match = game.match
                     for team in (match.team_a, match.team_b):
                         partners[tuple(sorted(team))] += 1
                     for a in match.team_a:
                         for b in match.team_b:
                             opponents[tuple(sorted((a, b)))] += 1
                     wins.update((match.team_a, match.team_b)[outcome])
-                    state = advance_session(state, [outcome])
+                scores = [[(15, 0) if outcome == 0 else (0, 15) for outcome in outcomes]]
+                state = advance_pool(state, scores)
                 self.assertEqual(set(partners), set(combinations(range(4), 2)))
                 self.assertEqual(set(partners.values()), {1})
                 self.assertEqual(set(opponents.values()), {2})
                 self.assertIn(sorted(wins.values()), ([0, 2, 2, 2], [1, 1, 1, 3]))
                 self.assertEqual(state["wins"], [wins[p] for p in range(4)])
-                self.assertEqual(state["pool_wins"], [0] * 4)
-                self.assertEqual(current_round(state).number, 4)
+                self.assertEqual(state["last_pool_points"], [15 * wins[p] for p in range(4)])
+                self.assertEqual(state["pool"], 2)
 
-    def test_pool_promotes_only_after_three_games(self):
-        for system in ("pool1", "pool2"):
-            state = create_session(system, 16, 190)
-            initial = [players(m) for m in current_round(state).matches]
-            for _ in range(2):
-                state = advance_session(state, [0] * 4)
-                self.assertEqual(initial, [players(m) for m in current_round(state).matches])
-            state = advance_session(state, [0] * 4)
-            following = [players(m) for m in current_round(state).matches]
-            count = 1 if system == "pool1" else 2
-            for court in range(3):
-                self.assertEqual(len(initial[court] & following[court + 1]), count)
-                self.assertEqual(len(initial[court + 1] & following[court]), count)
-            self.assertEqual(len(initial[0] & following[0]), 4 - count)
-            self.assertEqual(len(initial[-1] & following[-1]), 4 - count)
+    def test_five_player_pool_exhaustive_outcomes(self):
+        for outcomes in product((0, 1), repeat=5):
+            state = create_session("pool1", 5, 71)
+            court, = current_pool(state)
+            partners, opponents, byes, games_played = Counter(), Counter(), Counter(), Counter()
+            points = Counter({p: 0 for p in range(5)})
+            self.assertEqual(court.target, 11)
+            for game, outcome in zip(court.games, outcomes):
+                match = game.match
+                self.assertEqual(players(match) | {game.bye}, set(range(5)))
+                self.assertNotIn(game.bye, players(match))
+                byes[game.bye] += 1
+                games_played.update(players(match))
+                for team in (match.team_a, match.team_b):
+                    partners[tuple(sorted(team))] += 1
+                for a in match.team_a:
+                    for b in match.team_b:
+                        opponents[tuple(sorted((a, b)))] += 1
+                for player in (match.team_a, match.team_b)[outcome]:
+                    points[player] += 11
+            self.assertEqual(byes, Counter({p: 1 for p in range(5)}))
+            self.assertEqual(games_played, Counter({p: 4 for p in range(5)}))
+            self.assertEqual(set(partners), set(combinations(range(5), 2)))
+            self.assertEqual(set(partners.values()), {1})
+            self.assertEqual(set(opponents), set(combinations(range(5), 2)))
+            self.assertEqual(set(opponents.values()), {2})
+            scores = [[(11, 0) if outcome == 0 else (0, 11) for outcome in outcomes]]
+            after = advance_pool(state, scores)
+            self.assertEqual(after["last_pool_points"], [points[p] for p in range(5)])
 
-    def test_pool_promotes_by_block_wins_not_lifetime_wins(self):
+    def test_pool_mixed_sizes_move_by_current_points_not_wins(self):
+        # Independently tabulated 4-player totals: 45,18,17,16.
+        # Five-player totals: 31,43,33,21,22; wins: 1,3,3,1,2.
+        # Thus the one-win player scoring 31 ranks above a two-win player.
+        expected = {
+            "pool1": ({0, 1, 2, 5}, {3, 4, 6, 8, 10}, {7, 9, 11, 12, 13}),
+            "pool2": ({0, 1, 5, 6}, {2, 3, 4, 10, 11}, {7, 8, 9, 12, 13}),
+        }
         for system in ("pool1", "pool2"):
-            state = create_session(system, 12, 778)
-            original_groups = deepcopy(state["groups"])
-            # These unique synthetic standings make boundary selection exact.
-            state["round"] = 3
-            expected = []
-            for group in original_groups:
-                for rank, p in enumerate(group):
-                    state["pool_wins"][p] = 100 - rank * 10
-                    state["wins"][p] = rank * 100
-                expected.append(list(group))
-            count = 1 if system == "pool1" else 2
-            for upper in range(2):
-                for p in original_groups[upper][-count:]:
-                    expected[upper].remove(p)
-                    expected[upper + 1].append(p)
-                for p in original_groups[upper + 1][:count]:
-                    expected[upper + 1].remove(p)
-                    expected[upper].append(p)
-            following = current_round(advance_session(state, [0] * 3))
-            self.assertEqual([players(m) for m in following.matches], [set(g) for g in expected])
+            state = create_session(system, 14, 778)
+            state["groups"] = [list(range(4)), list(range(4, 9)), list(range(9, 14))]
+            state["wins"] = [100 * p for p in range(14)]
+            state["last_pool_points"] = [1000 * p for p in range(14)]
+            scores5 = [(11, 0), (11, 0), (11, 0), (11, 10), (10, 11)]
+            following = advance_pool(state, [[(15, 0), (15, 1), (15, 2)], scores5, scores5])
+            self.assertEqual(tuple(map(set, following["groups"])), expected[system])
+            self.assertEqual(following["last_pool_points"], [45, 18, 17, 16] + [31, 43, 33, 21, 22] * 2)
+
+    def test_pool_sizes_use_four_and_five_player_courts(self):
+        expected = {
+            4: (4,), 5: (5,), 8: (4, 4), 9: (4, 5), 10: (5, 5),
+            12: (4, 4, 4), 13: (4, 4, 5), 14: (4, 5, 5), 15: (5, 5, 5),
+            16: (4, 4, 4, 4), 17: (4, 4, 4, 5), 18: (4, 4, 5, 5),
+            19: (4, 5, 5, 5), 20: (4, 4, 4, 4, 4),
+            21: (4, 4, 4, 4, 5), 22: (4, 4, 4, 5, 5),
+            23: (4, 4, 5, 5, 5), 24: (4, 4, 4, 4, 4, 4),
+        }
+        for n, sizes in expected.items():
+            self.assertEqual(pool_sizes(n), sizes)
+            for system in POOL_SYSTEMS:
+                self.assertEqual(tuple(map(len, create_session(system, n, 77)["groups"])), sizes)
+        for n in (3, 6, 7, 11, 25, 4.0, True, "5"):
+            with self.subTest(n=n), self.assertRaises(ValueError):
+                pool_sizes(n)
+            for system in POOL_SYSTEMS:
+                with self.subTest(system=system, n=n), self.assertRaises(ValueError):
+                    create_session(system, n, 1)
+
+    def test_all_pool_counts_repeated_invariants_and_replay(self):
+        for system in POOL_SYSTEMS:
+            for n in (4, 5, 8, 9, 10, *range(12, 25)):
+                for seed in (1, 941):
+                    state = create_session(system, n, seed)
+                    for block in range(1, 9):
+                        with self.subTest(system=system, n=n, seed=seed, block=block):
+                            before = deepcopy(state)
+                            courts = current_pool(state)
+                            self.assertEqual(state, before)
+                            self.assertEqual(courts, current_pool(json.loads(json.dumps(state))))
+                            self.assertEqual(state["pool"], block)
+                            self.assertEqual([c.number for c in courts], list(range(1, len(courts) + 1)))
+                            self.assertEqual(tuple(len(c.players) for c in courts), pool_sizes(n))
+                            self.assertEqual(sorted(p for c in courts for p in c.players), list(range(n)))
+                            for court in courts:
+                                partners, byes, played = Counter(), Counter(), Counter()
+                                self.assertEqual((len(court.games), court.target), (3, 15) if len(court.players) == 4 else (5, 11))
+                                for game in court.games:
+                                    active = players(game.match)
+                                    self.assertEqual(len(active), 4)
+                                    self.assertEqual(active | (set() if game.bye is None else {game.bye}), set(court.players))
+                                    played.update(active)
+                                    if game.bye is not None:
+                                        byes[game.bye] += 1
+                                    for team in (game.match.team_a, game.match.team_b):
+                                        partners[tuple(sorted(team))] += 1
+                                self.assertEqual(set(partners), set(combinations(sorted(court.players), 2)))
+                                self.assertEqual(set(partners.values()), {1})
+                                self.assertEqual(set(played.values()), {len(court.players) - 1})
+                                self.assertEqual(byes, Counter() if len(court.players) == 4 else Counter({p: 1 for p in court.players}))
+                            scores = [[(c.target, (block + g) % c.target) if (block + g + c.number) % 2 else ((block + g) % c.target, c.target)
+                                       for g in range(len(c.games))] for c in courts]
+                            following = advance_pool(state, scores)
+                            self.assertEqual(state, before)
+                            self.assertEqual(following, advance_pool(json.loads(json.dumps(state)), scores))
+                            count = 1 if system == "pool1" else 2
+                            for upper in range(len(courts) - 1):
+                                self.assertEqual(len(set(state["groups"][upper]) & set(following["groups"][upper + 1])), count)
+                                self.assertEqual(len(set(state["groups"][upper + 1]) & set(following["groups"][upper])), count)
+                            self.assertEqual(sum(following["wins"]) - sum(state["wins"]), 2 * sum(len(c.games) for c in courts))
+                            state = following
+
+    def test_pool_records_are_immutable(self):
+        court, = current_pool(create_session("pool1", 5, 10))
+        with self.assertRaises(FrozenInstanceError):
+            court.target = 15
+        with self.assertRaises(FrozenInstanceError):
+            court.games[0].bye = 3
+        with self.assertRaises(FrozenInstanceError):
+            court.games[0].match.team_a = (1, 3)
+
+    def test_pool_invalid_scores_are_atomic(self):
+        state = create_session("pool2", 9, 190)
+        valid = [[(15, 10)] * 3, [(11, 7)] * 5]
+        bad_batches = (None, [], valid[:1], valid + [valid[0]], [valid[0], valid[1][:-1]])
+        for scores in bad_batches:
+            before = deepcopy(state)
+            with self.subTest(scores=scores), self.assertRaises(ValueError):
+                advance_pool(state, scores)
+            self.assertEqual(state, before)
+        for bad_pair in (None, [], [11], [11, 7, 0], [11, 11], [12, 10], [10, 9],
+                         [11, -1], [True, 11], [11.0, 7], ["11", 7]):
+            scores = deepcopy(valid)
+            scores[-1][-1] = bad_pair
+            before = deepcopy(state)
+            with self.subTest(pair=bad_pair), self.assertRaises(ValueError):
+                advance_pool(state, scores)
+            self.assertEqual(state, before)
+        for target, loser in ((15, 14), (11, 10)):
+            n = 4 if target == 15 else 5
+            state = create_session("pool1", n, 1)
+            advance_pool(state, [[(target, loser)] * (3 if n == 4 else 5)])
+
+    def test_pool_requires_whole_pool_score_api(self):
+        for system in POOL_SYSTEMS:
+            state = create_session(system, 4, 1)
+            with self.assertRaises(ValueError):
+                current_round(state)
+            with self.assertRaises(ValueError):
+                advance_session(state, [0])
+        state = create_session("full", 4, 1)
+        with self.assertRaises(ValueError):
+            current_pool(state)
+        with self.assertRaises(ValueError):
+            advance_pool(state, [[(15, 0)] * 3])
 
     def test_swiss_groups_by_wins_and_avoids_available_repeat(self):
         state = create_session("swiss", 16, 92)

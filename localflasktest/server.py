@@ -8,7 +8,8 @@ from flask import Flask, redirect, render_template, request, url_for
 from itsdangerous import BadData, URLSafeSerializer
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
-from picklebrackets import advance_session, create_session, current_round, random_schedule
+from picklebrackets import (advance_pool, advance_session, create_session,
+                            current_pool, current_round, pool_sizes, random_schedule)
 from picklebrackets.schedules import load_round_robin
 
 app = Flask(__name__)
@@ -31,12 +32,29 @@ NOTES = {
     "full": "Winners move up; losers move down. Partners split. Court 1 is the top.",
     "steve": "Winners stay; losers move down and wrap to Court 1. Partners split.",
     "joe": "Winners move up; losers stay, except Court 1 losers wrap to the bottom. Partners split.",
-    "pool1": "Three games per pool, then swap the top/bottom player across adjacent courts. Ties drawn at random.",
-    "pool2": "Three games per pool, then swap the top/bottom two across adjacent courts. Ties drawn at random.",
+    "pool1": "Rank by pool points, then swap the top/bottom player across adjacent courts. Ties drawn at random.",
+    "pool2": "Rank by pool points, then swap the top/bottom two across adjacent courts. Ties drawn at random.",
     "swiss": "Group by total wins; avoid repeat partners within each court. Ties drawn at random.",
 }
 STATIC_SYSTEMS = {"round_robin", "random"}
+POOL_SYSTEMS = {"pool1", "pool2"}
 MAX_ROUNDS = 100
+MAX_POOLS = 100
+
+
+def supported_counts(system):
+    if system in STATIC_SYSTEMS:
+        return list(range(4, 25))
+    if system in POOL_SYSTEMS:
+        counts = []
+        for n in range(4, 25):
+            try:
+                pool_sizes(n)
+            except ValueError:
+                continue
+            counts.append(n)
+        return counts
+    return list(range(4, 25, 4))
 
 
 def signer():
@@ -45,6 +63,7 @@ def signer():
 
 def setup_page(error=None, system="round_robin", n=8, named=False):
     return render_template("index.html", systems=SYSTEMS, notes=NOTES,
+                           player_counts={key: supported_counts(key) for key in SYSTEMS},
                            selected=system, n=n, named=named, error=error)
 
 
@@ -90,7 +109,43 @@ def start_bracket(system, names):
                                note=NOTES[system], system=system)
     payload = {"kind": "play", "system": system, "names": names,
                "state": create_session(system, n, secrets.randbits(64)), "completed": []}
+    if system in POOL_SYSTEMS:
+        payload["kind"] = "pool"
+        return pool_page(payload)
     return play_page(payload)
+
+
+def display_pool(state, names, scores=None):
+    courts = []
+    for c, court in enumerate(current_pool(state)):
+        games = []
+        points = {player: 0 for player in court.players}
+        for g, game in enumerate(court.games):
+            score = None if scores is None else scores[c][g]
+            if score is not None:
+                for team, value in zip((game.match.team_a, game.match.team_b), score):
+                    for player in team:
+                        points[player] += value
+            games.append({
+                "a": " / ".join(names[p] for p in game.match.team_a),
+                "b": " / ".join(names[p] for p in game.match.team_b),
+                "bye": None if game.bye is None else names[game.bye],
+                "scores": score, "field": f"score_{c}_{g}",
+            })
+        courts.append({"number": court.number, "size": len(court.players),
+                       "target": court.target, "games": games,
+                       "points": [{"name": names[p], "total": points[p]}
+                                  for p in sorted(points, key=lambda p: -points[p])]})
+    return {"number": state["pool"], "courts": courts}
+
+
+def pool_page(payload, error=None, submitted=None, finished=False):
+    return render_template("pool.html", title=SYSTEMS[payload["system"]],
+                           note=NOTES[payload["system"]], n=len(payload["names"]),
+                           pool=display_pool(payload["state"], payload["names"]),
+                           completed=payload["completed"], token=signer().dumps(payload),
+                           error=error, submitted=submitted or {}, finished=finished,
+                           max_pools=MAX_POOLS)
 
 
 def play_page(payload, error=None):
@@ -124,7 +179,9 @@ def submitRR():
         return setup_page("Choose a play system.", n=n, named=named), 400
     if not 4 <= n <= 24:
         return setup_page("Choose a player count from 4 to 24.", system, named=named), 400
-    if system not in STATIC_SYSTEMS and n % 4:
+    if system in POOL_SYSTEMS and n not in supported_counts(system):
+        return setup_page("Pool play needs 4, 5, 8, 9, 10, or 12–24 players.", system, n, named), 400
+    if system not in STATIC_SYSTEMS | POOL_SYSTEMS and n % 4:
         return setup_page("This system needs 4, 8, 12, 16, 20, or 24 players.", system, n, named), 400
     if named:
         token = signer().dumps({"kind": "setup", "system": system, "n": n})
@@ -151,6 +208,8 @@ def next_round():
         payload = read_token("state_token", "play")
     except ValueError as exc:
         return setup_page(str(exc)), 400
+    if payload["system"] in POOL_SYSTEMS:
+        return setup_page("Pool play now uses game scores. Please start a new bracket."), 400
     round_ = current_round(payload["state"])
     try:
         winners = [int(request.form.get(f"winner_{i}", "")) for i in range(len(round_.matches))]
@@ -166,6 +225,30 @@ def next_round():
                                note="Session complete.", system=payload["system"])
     payload["state"] = advance_session(payload["state"], winners)
     return play_page(payload)
+
+
+@app.post("/next-pool")
+def next_pool():
+    try:
+        payload = read_token("state_token", "pool")
+    except ValueError as exc:
+        return setup_page(str(exc)), 400
+    try:
+        scores = [[[int(request.form.get(f"score_{c}_{g}_{side}", ""))
+                    for side in ("a", "b")]
+                   for g, game in enumerate(court.games)]
+                  for c, court in enumerate(current_pool(payload["state"]))]
+    except ValueError:
+        return pool_page(payload, "Enter both scores for every game.", request.form), 400
+    try:
+        next_state = advance_pool(payload["state"], scores)
+    except ValueError as exc:
+        return pool_page(payload, str(exc), request.form), 400
+    payload["completed"].append(display_pool(payload["state"], payload["names"], scores))
+    if payload["state"]["pool"] >= MAX_POOLS:
+        return pool_page(payload, finished=True)
+    payload["state"] = next_state
+    return pool_page(payload)
 
 
 if __name__ == "__main__":

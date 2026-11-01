@@ -32,12 +32,13 @@
 </footer>
 <script>
 const notes = {{ notes | tojson }};
+const playerCounts = {{ player_counts | tojson }};
 const system = document.getElementById('system');
 const players = document.getElementById('numplay');
 function updatePlayers() {
-  const fullCourts = !['round_robin', 'random'].includes(system.value);
-  for (const option of players.options) option.disabled = fullCourts && Number(option.value) % 4 !== 0;
-  if (players.selectedOptions[0].disabled) players.value = String(Math.ceil(Number(players.value) / 4) * 4);
+  const allowed = playerCounts[system.value];
+  for (const option of players.options) option.disabled = !allowed.includes(Number(option.value));
+  if (players.selectedOptions[0].disabled) players.value = String(allowed.find(n => n >= Number(players.value)) ?? allowed[0]);
   document.getElementById('system-note').textContent = notes[system.value];
 }
 system.addEventListener('change', updatePlayers);
